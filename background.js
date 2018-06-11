@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 'use strict';
+var current_url;// 현재 페이지 url
 
 chrome.runtime.onInstalled.addListener(function() {
     chrome.storage.sync.set({color: '#3aa757'}, function() {
