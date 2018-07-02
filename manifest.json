@@ -1,27 +1,61 @@
 {
-    "name" : "KeyboardController",
-    "version" : "0.1",
-    "description" : "Some Site Control by Keyboard",
-    "permissions" : ["tabs","activeTab","declarativeContent","storage"],
+    "name" : "extension for dogdrip.net",
+    "version" : "1.0",
+    "description" : "Dogdrip.net 확장프로그램",
+    "permissions" : ["tabs","activeTab","declarativeContent","storage","http://www.dogdrip.net/*"],
     "options_page":"options.html",
     "background" : {
         "scripts" : ["background.js"],
+        "charset" : "utf-8", 
         "persistent" : false
     },
-    "page_action": {
-      "default_popup": "popup.html",
+    "browser_action": {
       "default_icon": {
         "16": "images/get_started16.png",
         "32": "images/get_started32.png",
         "48": "images/get_started48.png",
         "128": "images/get_started128.png"
-      }
+      },
+      "default_title" : "Dogdrip.net 확장프로그램"
     },
     "icons": {
       "16": "images/get_started16.png",
       "32": "images/get_started32.png",
       "48": "images/get_started48.png",
       "128": "images/get_started128.png"
+    },
+    "content_scripts" : [
+      {
+        "matches": ["http://www.dogdrip.net/*"],
+        "css": ["mycss.css"],
+        "js": ["jquery-3.3.1.min.js", "dogdrip.js"]
+      }
+    ],
+    "commands" : {
+      "prev" : {
+        "suggested_key" : {
+          "default" : "Ctrl+Left"
+        },
+        "description" : "prev_article"
+      },
+      "next" : {
+        "suggested_key" : {
+          "default" : "Ctrl+Right"
+        },
+        "description" : "next_article"
+      },
+      "list" : {
+        "suggested_key" : {
+          "default" : "Ctrl+Down"
+        },
+        "description" : "list of Article"
+      }
+      ,"1" : {
+        "suggested_key" : {
+          "default" : "Alt+1"
+        },
+        "description" : "press 1"
+      }
     },
     "manifest_version" : 2
 }
