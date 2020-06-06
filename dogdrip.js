@@ -13,7 +13,7 @@ var keycode_list = [51,52,53,54,55,56,57,/*1~9*/113,119,101,114,116,97,115,100,1
 function initialDogdrip() { 
     
     var tag;
-    tag = '<div id="helper-box" class="helper_box"><div class="helper-box-title">도움말</div>';
+    tag = '<div id="helper-box" class="helper_box" style="display:none;"><div class="helper-box-title">도움말</div>';
     tag += '<div class="heler-box-content">'
     tag += 'Ctrl + ← : 이전게시글로 이동<br>';
     tag += 'Ctrl + → : 다음게시글로 이동<br>';
@@ -25,10 +25,12 @@ function initialDogdrip() {
     // tag 삽입하기
     var doc = document.body;
     doc.innerHTML = document.body.innerHTML + tag;
+    
+    // 도움말 상자 on/off onclick event 등록
     document.getElementById('hidebtn').onclick = function() {helper_box(false)};
     document.getElementById('viewbtn').onclick = function() {helper_box(true)};
     chrome.storage.sync.get(null, function(result) {
-        console.log('result : ' + result.helper);
+        //printlog('result : ' + result.helper);
         if (result.helper == null) {
             helper_box(true);
             return false;
@@ -42,23 +44,25 @@ function initialDogdrip() {
 
 function helper_box(select) {
     chrome.storage.sync.set({'helper' : select},function() {
-        console.log('saved data : '+ select);
+        printlog('helper_box saved : ' + (select?'on':'off'));
     });
-    console.log('helper_box('+select+') run!');
-    // select : true = view / false = hide
-    var helperbox = document.getElementById('helper-box');
-    var hide_box = document.getElementById('hide-helper-btn');
-    var view_box = document.getElementById('view-helper-btn');
-    
-    if (select) {
-        view_box.style.display = 'none';
-        hide_box.style.display = '';
-        helperbox.style.display = '';
-    } else {
-        view_box.style.display = '';
-        hide_box.style.display = 'none';
-        helperbox.style.display = 'none';
-    }
+    //printlog('helper_box('+select+') run!');
+    setTimeout(function() {
+        // select : true = view / false = hide
+        var helperbox = document.getElementById('helper-box');
+        var hide_box = document.getElementById('hide-helper-btn');
+        var view_box = document.getElementById('view-helper-btn');
+        
+        if (select) {
+            view_box.style.display = 'none';
+            hide_box.style.display = '';
+            helperbox.style.display = '';
+        } else {
+            view_box.style.display = '';
+            hide_box.style.display = 'none';
+            helperbox.style.display = 'none';
+        }
+    }, 50);
 }
         
 
@@ -66,14 +70,12 @@ function helper_box(select) {
 function cannotMoveArticleDogdrip(message) {
     //alert('message length '+message.length);
     var message_length = message.length*22;
-    console.log('start of cannotMoveArticleDogdrip()');
-    let tag = '<div id="msg" class="helper_msgbox">'+message+'</div>';
+    printlog('start of cannotMoveArticleDogdrip()');
     
-    let tag2 = '<div id="msg" class="helper_msgbox">';
-    tag2 += '<div class="helper_msgbox_text" style="width:'+message_length+'px;';
-    tag2 += 'margin-left:-'+(message_length/2)+'px;">';
-    tag2 += message+'</div></div>';
-    tag = tag2;
+    let tag = '<div id="msg" class="helper_msgbox">';
+    tag += '<div class="helper_msgbox_text" style="width:'+message_length+'px;';
+    tag += 'margin-left:-'+(message_length/2)+'px;">';
+    tag += message+'</div></div>';
     
     // 이전에 실행한거 없애기
     let msg = document.getElementById('msg');
@@ -81,102 +83,108 @@ function cannotMoveArticleDogdrip(message) {
 
     // 메세지 박스 fadeOut();
     let doc = document.body;
-    time = 3000;
+    time = 3000; // 3 sec
     doc.innerHTML = doc.innerHTML + tag;
     $('#msg').fadeOut(time);
-    console.log('end of cannotMoveArticlDogdrip()');
+    printlog('end of cannotMoveArticlDogdrip()');
 }
 
 function getListOfArticleDogdrip() {
+    printlog('getListOfAricleDogdrip run!');
     var tr;
     tr = $('tbody').children();
-    
     tr.each(function(i) { // get ListOfArticleDogdrip
-        //console.log(i);
+        //printlog(i);
         listOfArticleDogdrip[i] = getArticleDogdrip(tr.eq(i));
-        if (listOfArticleDogdrip[i] == 0 ) {
+        //alert(listOfArticleDogdrip[i]+ " :::: " + i);
+        //printlog(listOfArticleDogdrip[i]);
+        if (listOfArticleDogdrip[i] == document.URL ) {
             currentArticleDogdrip = i;
-            //console.log('current article Dogdrip : ' + currentArticleDogdrip);
+            //printlog('current article Dogdrip : ' + currentArticleDogdrip);
         }
     });
-    console.log('end of listOfArticle()\n');
+    printlog('end of listOfArticle()\n');
     return listOfArticleDogdrip;
 }
 
 
 function getArticleDogdrip(tr) { 
     let td = tr.children();
-    //console.log(td.eq(0).text());
+    //printlog(td.eq(0).text());
     if (td.eq(0).text() == '') {
         return 0;
     }
     
     let component = td.eq(1).children();
-    //console.log('주소 : '+component.eq(0).attr('href'));
+    //printlog('주소 : '+component.eq(0).attr('href'));
     return component.eq(0).attr('href');
 }
 
 
 function moveArticleDogdrip(select) {
     getListOfArticleDogdrip();
-    console.log('moveArticle('+select+') run!');
-    let move = 0; // left : -1 , right : 1
-    if (select == 'prev') {
-        move = -1;
-    }
-    if (select == 'next') {
-        move = 1;
-    }
-    // check article index
-    if ( (currentArticleDogdrip+move) >= 0 && (currentArticleDogdrip+move) < listOfArticleDogdrip.length) {
-        location.href = listOfArticleDogdrip[move+currentArticleDogdrip];
-    }
-    else {
-        console.log('currentArticleDodgdrip : ' + currentArticleDogdrip);
-        console.log('move : ' + move);
-        console.log('cannotMoveArticleDogdrip() run : '+ (currentArticleDogdrip+move));
-        // out range of article list
-        cannotMoveArticleDogdrip('이동할 수 없습니다.');
-    }
+    printlog('moveArticle('+select+') run!');
+    setTimeout( function() {
+
+        let move = 0; // left : -1 , right : 1
+        if (select == 'prev') {
+            move = -1;
+        }
+        if (select == 'next') {
+            move = 1;
+        }
+        // check article index
+        if ( (currentArticleDogdrip+move) >= 0 && (currentArticleDogdrip+move) < listOfArticleDogdrip.length) {
+            location.href = listOfArticleDogdrip[move+currentArticleDogdrip];
+        }
+        else {
+            printlog('currentArticleDodgdrip : ' + currentArticleDogdrip);
+            printlog('move : ' + move);
+            printlog('cannotMoveArticleDogdrip() run : '+ (currentArticleDogdrip+move));
+            // out range of article list
+            cannotMoveArticleDogdrip('이동할 수 없습니다.');
+        }
+    }, 1000);
 }
 
 
 
 // Press 'Ctrl+Down'
 function moveArticleList() {
-    var table1 = document.getElementsByClassName("boardList")[0];
+    printlog('단축키 부여');
+    var table1 = document.getElementsByClassName("table-divider")[0];
     table1.scrollIntoView();
     
     // 1. select table
-    var table2 = $('.boardList').children();
-    console.log('table2 : '+ table2);
+    var table2 = $('.table-divider').children();
+    //printlog('table2 : '+ table2);
     
-    console.log('kkkk : '+ table2.length);
+    //printlog('kkkk : '+ table2.length);
     // 2. select tbody
     var trs = table2.eq(1).children();
     
-    console.log('tr.length : '+ trs.length);
+    //printlog('tr.length : '+ trs.length);
     
-    console.log('tr : ' + trs);
-    
+    //printlog('tr : ' + trs);
+
     trs.each(function(i) {
-        console.log('tr run! '+ i);
+        //printlog('tr run! '+ i);
         var tr = new Array();
         // 3. select tr
         tr = trs.eq(i).children();
         
         var td = tr.eq(0);
-        console.log('td ' + td.text());
+        //printlog('td ' + td.text());
         td.html('<span id="key_'+key_list[i]+'" style="color:red;">'+key_list[i]+'</span>');
     });
 
     chrome.storage.sync.set({set_list:true},null);
     
     let doc = document.body;
-    
+    doc.html(doc.html() + '<span>asdfasdfasdfasdf</span>');
     doc.addEventListener('keypress', function(e) {
         getListOfArticleDogdrip();
-        console.log(e + ' : ' + e.keyCode);
+        printlog(e + ' : ' + e.keyCode);
         if (e.keyCode == 49) {
             voteDogdrip('voteup');
             return false;
@@ -186,7 +194,7 @@ function moveArticleList() {
         }
         else{
             var article_num = keycode_list.indexOf(e.keyCode);
-            console.log ('article_num : ' + article_num);
+            printlog ('article_num : ' + article_num);
             if (article_num != -1 && article_num <keycode_list.length)
                 location.href= listOfArticleDogdrip[article_num];
         }
@@ -202,7 +210,7 @@ function moveArticleList() {
 
 // 단축키 눌러서 이동하기
 function moveArticleDogdripByPressHotKey(selected_key_number) {
-    console.log('moveArticleDogdripByPressHotKey() run!');
+    printlog('moveArticleDogdripByPressHotKey() run!');
     // selected_key_number : 선택된 게시글 순번
     getListOfArticleDogdrip();
     
@@ -226,3 +234,4 @@ function voteDogdrip(element) {
         btn_votedown.click();
     }
 }
+
