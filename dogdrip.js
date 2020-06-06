@@ -9,22 +9,7 @@ var keycode_list = [51,52,53,54,55,56,57,/*1~9*/113,119,101,114,116,97,115,100,1
 
 
 
-// 초기화
 function initialDogdrip() { 
-    
-    var tag;
-    tag = '<div id="helper-box" class="helper_box" style="display:none;"><div class="helper-box-title">도움말</div>';
-    tag += '<div class="heler-box-content">'
-    tag += 'Ctrl + ← : 이전게시글로 이동<br>';
-    tag += 'Ctrl + → : 다음게시글로 이동<br>';
-    tag += 'Ctrl + ↓ : 목록으로 이동 + 단축키 부여<br></div>';
-    tag += '<div id="hide-helper-btn" class="helper_btn"><button id="hidebtn" class="helper-btn">></button></div></div>';
-    tag += '<div id="view-helper-btn" class="helper_btn"><button id="viewbtn" class="helper-btn"><</button></div>';
-    
-
-    // tag 삽입하기
-    var doc = document.body;
-    doc.innerHTML = document.body.innerHTML + tag;
     
     // 도움말 상자 on/off onclick event 등록
     document.getElementById('hidebtn').onclick = function() {helper_box(false)};
@@ -235,3 +220,38 @@ function voteDogdrip(element) {
     }
 }
 
+chrome.storage.local.get( null, function (items) {
+    printlog("run chrome.storage.local.get( null, function (items)");
+    printlog("document.URL.indexOf('http://www.dogdrip.net')" + document.URL.indexOf('http://www.dogdrip.net'));
+    if (document.URL.indexOf('https://www.dogdrip.net') != 0 ){
+       //  && tab.url != 'https://www.dogdrip.net' 
+       //  && tab.url != 'https://www.dogdrip.net/'
+       //  && tab.url != 'www.dogdrip.net' ) {
+         return;
+     }
+     
+     function DOMContentLoaded_function() {
+        printlog("run DOMContentLoaded_function() ");
+        $(`<div id="helper-box" class="helper_box" style="display:none;"><div class="helper-box-title">도움말</div>
+        <div class="heler-box-content">
+        <span>Ctrl + ← : 이전게시글로 이동</span><br>
+        <span>Ctrl + → : 다음게시글로 이동</span><br>
+        <span>Ctrl + ↓ : 목록으로 이동 + 단축키 부여</span><br></div>
+        <div id="hide-helper-btn" class="helper_btn"><button id="hidebtn" class="helper-btn">></button></div></div>
+        <div id="view-helper-btn" class="helper_btn"><button id="viewbtn" class="helper-btn"><</button></div>
+        `).insertAfter("div.footer > div.container");
+
+        initialDogdrip();
+     }
+
+     if(document.readyState === "loading"){
+        printlog("document.readyState === 'loading'");
+         document.addEventListener("DOMContentLoaded", function() {
+             DOMContentLoaded_function();
+         });
+     }
+     else{ // interactive complete
+        printlog("document.readyState === " + document.readyState);
+         DOMContentLoaded_function();
+     }
+});

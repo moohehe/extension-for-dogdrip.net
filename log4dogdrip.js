@@ -1,5 +1,5 @@
 // print 허용 플래그(개발용)
-var logFlg = true;
+var logFlg = false;
 function printlog(text) {
 
     if (logFlg) {
