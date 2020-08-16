@@ -164,6 +164,7 @@ function moveArticleList() {
         // 4. show red shortcut key 
         var td = new Array();
         td = tr.eq(0).children();
+        td = tr.eq(0).children().eq(0).children();
         td.html('<span id="key_'+key_list[i]+'" style="color:red;">'+key_list[i]+'</span>' + td.html());
 
     });
