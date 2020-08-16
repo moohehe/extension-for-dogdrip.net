@@ -1,51 +1,14 @@
 'use strict';
 var current_url;
 var key_list = ['1','2','3','4','5','6','7','8','9','0','q','w','e','r','t','a','s','d','f','g','z','x','c','v','b'];
-var iscomplete = false; 
-var previous_url = '';
-
-
-// // When page's status be 'complete', js file insert
-// chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab){
-//     //printlog('tab : ' + tab.status + ', ' + tab.url + ', '+ tab.title);
-//     //printlog('url : ' + tab.url);
-//     if (tab.url.indexOf('https://www.dogdrip.net') > -1 
-//         && tab.url != 'https://www.dogdrip.net' 
-//         && tab.url != 'https://www.dogdrip.net/'
-//         && tab.url != 'www.dogdrip.net' ) { // dogdrip.net
-
-//         if (tab.status == 'complete' && previous_url != tab.url ) {
-//             previous_url = tab.url;
-//             iscomplete = true;
-//             chrome.tabs.executeScript(tab.id, {
-//                     file:'dogdrip.js'
-//                 },
-//                 function(result) {
-//                     printlog('completed insert method! ' + tabId);
-//                 }
-//             );
-//             chrome.tabs.insertCSS(null, {file:'dogdripextension.css'});
-//             setTimeout(function() {
-//             chrome.tabs.executeScript(tab.id, {
-//                 code : 'initialDogdrip()'
-//             }, function(result) {
-//                 printlog('initialDogdrip() run!');
-//             });
-//             },1000);
-            
-//         }
-//     }
-// });
-
-
 
 // detect ctrl+> ctrl+< 
 chrome.commands.onCommand.addListener(function (command) {
     chrome.tabs.query({active:true, currentWindow:true},function(tabs) {
         current_url = tabs[0].url;
         
-        if (current_url.indexOf('www.dogdrip.net/') != -1 || current_url.indexOf('bbs.ruliweb.com/') != -1) {
-            printlog('start of command : ',command);
+        if (current_url.indexOf('www.dogdrip.net/') != -1 ) {
+            printlog('start of command : '+ command);
             //printlog('tabs[0].url=' + tabs[0].url);
             if (command == 'prev') {
                 chrome.tabs.executeScript(tabs[0].id,  {
@@ -81,7 +44,7 @@ chrome.commands.onCommand.addListener(function (command) {
                 }
             }
             
-            printlog('end of command : ',command);
+            printlog('end of command : '+command);
         }
         else {
             printlog('not dogdrip.net');
@@ -107,7 +70,7 @@ function getListArticle(){
             code: 'document.querySelector("tbody")'
             }, 
             function(result) {
-                printlog('asfd : "' + result+'"');
+                printlog('result : "' + result+'"');
                 //tr = tabs[0].getElementById('tbody');
                 tr = result;
         });
@@ -173,8 +136,4 @@ function moveBoardList() {
     document.getElementsByTagName('table')[0].id = 'list';
     document.getElementsByTagName('list').scrollIntoView();
 }
-
-
-
-
 

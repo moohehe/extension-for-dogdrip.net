@@ -1,8 +1,8 @@
 {
     "name" : "extension for dogdrip.net",
-    "version" : "1.0.6",
+    "version" : "1.0.9",
     "description" : "Dogdrip.net 확장프로그램",
-    "permissions" : ["tabs","activeTab","declarativeContent","storage","https://www.dogdrip.net/*"],
+    "permissions" : ["tabs","activeTab","storage","https://www.dogdrip.net/*"],
     "options_page":"options.html",
     "background" : {
         "scripts" : ["log4dogdrip.js", "background.js"],
