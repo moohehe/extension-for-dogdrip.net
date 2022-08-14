@@ -82,8 +82,8 @@ function getListOfArticleDogdrip() {
     tr.each(function(i) { // get ListOfArticleDogdrip
         //printlog(i);
         listOfArticleDogdrip[i] = getArticleDogdrip(tr.eq(i));
-        //printlog('listOfArticleDogdrip[' + i +'] : '+listOfArticleDogdrip[i]);
-        if (listOfArticleDogdrip[i] == document.URL ) {
+        printlog('listOfArticleDogdrip[' + i +'] : '+listOfArticleDogdrip[i] + '::' + document.URL);
+        if (document.URL.includes(listOfArticleDogdrip[i])  ) {
             currentArticleDogdrip = i;
             printlog('current article Dogdrip : ' + currentArticleDogdrip);
         }
@@ -123,8 +123,9 @@ function moveArticleDogdrip(select) {
         }
         // check article index
         if ( (currentArticleDogdrip+move) >= 0 && (currentArticleDogdrip+move) < listOfArticleDogdrip.length) {
-            printlog('listOfArticleDogdrip[move+currentArticleDogdrip] : ' + listOfArticleDogdrip[move+currentArticleDogdrip]);
-            location.href = listOfArticleDogdrip[move+currentArticleDogdrip];
+            var next_link = listOfArticleDogdrip[move+currentArticleDogdrip];
+            printlog('move:' + move + ',currentArticleDogdrip:' + currentArticleDogdrip + ',next_link:' + next_link);
+            location.href = next_link;
         }
         else {
             printlog('currentArticleDodgdrip : ' + currentArticleDogdrip);
