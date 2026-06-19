@@ -1,384 +1,254 @@
-var listOfArticleDogdrip = new Array();
-var currentArticleDogdrip = -1;
-var listOfPageDogdrip = new Array();
-var currentPageDogdrip = -1;
+'use strict';
 
+// 목록 단축키 문자 (3부터 시작, 1=추천/2=붐업 충돌 방지)
+const KEY_LIST = ['3','4','5','6','7','8','9','q','w','e','r','t','a','s','d','f','g','z','x','c','v','b','n','m','h','j','k','l'];
 
-var key_list = ['3','4','5','6','7','8', '9', 'q','w','e','r','t','a','s','d','f','g','z','x','c','v','b','n','m','h','j','k','l'];
-var keycode_list = [51,52,53,54,55,56,57,/*1~9*/113,119,101,114,116,97,115,100,102,103,122,120,99,118,98,110,109,104,106,107,108];
+let listKeyHandler = null;
+let currentFocusIndex = -1;
 
-
-
-function initialDogdrip() { 
-    
-    // 도움말 상자 on/off onclick event 등록
-    document.getElementById('hidebtn').onclick = function() {helper_box(false)};
-    document.getElementById('viewbtn').onclick = function() {helper_box(true)};
-    chrome.storage.sync.get(null, function(result) {
-        //printlog('result : ' + result.helper);
-        if (result.helper == null) {
-            helper_box(true);
-            return false;
-        }
-        else {
-            helper_box(result.helper);
-        }
-    });
+function updateListFocus(liItems, newIndex) {
+    if (newIndex < 0 || newIndex >= liItems.length) return;
+    liItems.forEach(li => li.classList.remove('dd-list-focus'));
+    currentFocusIndex = newIndex;
+    liItems[newIndex].classList.add('dd-list-focus');
+    liItems[newIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ── 유틸 ──────────────────────────────────────────────
 
-function helper_box(select) {
-    chrome.storage.sync.set({'helper' : select},function() {
-        printlog('helper_box saved : ' + (select?'on':'off'));
-    });
-    //printlog('helper_box('+select+') run!');
-    setTimeout(function() {
-        // select : true = view / false = hide
-        var helperbox = document.getElementById('helper-box');
-        var hide_box = document.getElementById('hide-helper-btn');
-        var view_box = document.getElementById('view-helper-btn');
-        
-        if (select) {
-            view_box.style.display = 'none';
-            hide_box.style.display = '';
-            helperbox.style.display = '';
-        } else {
-            view_box.style.display = '';
-            hide_box.style.display = 'none';
-            helperbox.style.display = 'none';
-        }
-    }, 50);
-}
-        
-
-// insert cannot-Move msgbox
-function cannotMoveArticleDogdrip(message) {
-    //alert('message length '+message.length);
-    var message_length = message.length*22;
-    printlog('start of cannotMoveArticleDogdrip()');
-    
-    let tag = '<div id="msg" class="helper_msgbox">';
-    tag += '<div class="helper_msgbox_text" style="width:'+message_length+'px;';
-    tag += 'margin-left:-'+(message_length/2)+'px;">';
-    tag += message+'</div></div>';
-    
-    // 이전에 실행한거 없애기
-    let msg = document.getElementById('msg');
-    if (msg != null)  msg.remove();
-
-    // 메세지 박스 fadeOut();
-    let doc = document.body;
-    time = 3000; // 3 sec
-    doc.innerHTML = doc.innerHTML + tag;
-    $('#msg').fadeOut(time);
-    printlog('end of cannotMoveArticlDogdrip()');
+// URL에서 게시글 고유번호(document_srl) 추출
+// 예: /708794087  /dogdrip/708777293?sort_index=...
+function extractDocSrl(url) {
+    if (!url) return null;
+    const match = url.match(/\/(\d{5,})(?:[/?#]|$)/);
+    return match ? match[1] : null;
 }
 
-function getListOfArticleDogdrip() {
-    printlog('getListOfAricleDogdrip run!');
-    var tr;
-    tr = $('tbody').children();
-    printlog('tr : ' + tr.html());
-    tr.each(function(i) { // get ListOfArticleDogdrip
-        //printlog(i);
-        listOfArticleDogdrip[i] = getArticleDogdrip(tr.eq(i));
-        printlog('listOfArticleDogdrip[' + i +'] : '+listOfArticleDogdrip[i] + '::' + document.URL);
-        if (document.URL.includes(listOfArticleDogdrip[i])  ) {
-            currentArticleDogdrip = i;
-            printlog('current article Dogdrip : ' + currentArticleDogdrip);
+// ── 게시글 목록 파싱 ──────────────────────────────────
+
+// 현재 페이지의 <li h5 a> 구조에서 게시글 링크 수집
+function getArticleList() {
+    const seen = new Set();
+    const articles = [];
+
+    document.querySelectorAll('li h5 a').forEach(a => {
+        const srl = extractDocSrl(a.href);
+        if (srl && !seen.has(srl)) {
+            seen.add(srl);
+            articles.push(a.href);
         }
     });
-    printlog('length of listOfArtilcle() :' + listOfArticleDogdrip.length);
-    printlog('end of listOfArticle()\n');
-    return listOfArticleDogdrip;
+
+    return articles;
 }
 
+// 현재 URL이 목록 내 몇 번째인지 반환 (-1이면 없음)
+function getCurrentIndex(articles) {
+    const currentSrl = extractDocSrl(location.href);
+    if (!currentSrl) return -1;
+    return articles.findIndex(url => extractDocSrl(url) === currentSrl);
+}
 
-function getArticleDogdrip(tr) { 
-    //printlog('getArticleDogdrip start');
-    let td = tr.children();
-    printlog('td.eq(0).text() : '+ td.eq(0).text());
-    if (td.eq(0).text() == '') {
-        return 0;
+// ── 이전/다음 게시글 이동 ─────────────────────────────
+
+function moveArticle(direction) {
+    const articles = getArticleList();
+    if (articles.length === 0) {
+        showMessage('게시글 목록을 찾을 수 없습니다.');
+        return;
     }
-    
-    let component = td.eq(0).children();
-    printlog('주소 : '+component.eq(0).children().eq(0).attr('href'));
-    printlog('getArticleDogdrip end');
-    return component.eq(0).children().eq(0).attr('href');
-}
 
+    const current = getCurrentIndex(articles);
+    if (current === -1) {
+        showMessage('현재 게시글을 목록에서 찾을 수 없습니다.');
+        return;
+    }
 
-function moveArticleDogdrip(select) {
-    getListOfArticleDogdrip();
-    printlog('moveArticle('+select+') run!');
-    setTimeout( function() {
-
-        let move = 0; // left : -1 , right : 1
-        if (select == 'prev') {
-            move = -1;
-        }
-        if (select == 'next') {
-            move = 1;
-        }
-        // check article index
-        if ( (currentArticleDogdrip+move) >= 0 && (currentArticleDogdrip+move) < listOfArticleDogdrip.length) {
-            var next_link = listOfArticleDogdrip[move+currentArticleDogdrip];
-            printlog('move:' + move + ',currentArticleDogdrip:' + currentArticleDogdrip + ',next_link:' + next_link);
-            location.href = next_link;
-        }
-        else {
-            printlog('currentArticleDodgdrip : ' + currentArticleDogdrip);
-            printlog('move : ' + move);
-            printlog('cannotMoveArticleDogdrip() run : '+ (currentArticleDogdrip+move));
-            // out range of article list
-            cannotMoveArticleDogdrip('이동할 수 없습니다.');
-        }
-    }, 1000);
-}
-
-
-
-// Press 'Ctrl+Down'
-function moveArticleList() {
-    printlog('단축키 부여');
-    var table1 = document.getElementsByClassName("table-divider")[0];
-    table1.scrollIntoView();
-    
-    // 1. select table
-    var table2 = $('.table-divider').children();
-    //printlog('table2 : '+ table2);
-    
-    //printlog('kkkk : '+ table2.length);
-    // 2. select tbody
-    var trs = table2.eq(1).children();
-    
-    //printlog('tr.length : '+ trs.length);
-    
-    //printlog('tr : ' + trs);
-    trs.each(function(i) {
-        //printlog('tr run! '+ i);
-        var tr = new Array();
-        // 3. select tr
-        tr = trs.eq(i).children();
-        
-        // 4. show red shortcut key 
-        var td = new Array();
-        td = tr.eq(0).children();
-        td = tr.eq(0).children().eq(0).children();
-        td.html('<span id="key_'+key_list[i]+'" style="color:red;">'+key_list[i]+'</span>' + td.html());
-
-    });
-
-    chrome.storage.sync.set({set_list:true},null);
-    
-    let doc = document.body;
-    doc.addEventListener('keypress', function(e) {
-        getListOfArticleDogdrip();
-        printlog('addEventListener(keypres)');
-        printlog(e + ' : ' + e.keyCode);
-        if (e.keyCode == 49) {
-            voteDogdrip('voteup');
-            return false;
-        }else if (e.keyCode == 50) {
-            voteDogdrip('voteDown');
-            return false;
-        }
-        else{
-            var article_num = keycode_list.indexOf(e.keyCode);
-            printlog ('article_num : ' + article_num);
-            if (article_num != -1 && article_num <keycode_list.length)
-                location.href= listOfArticleDogdrip[article_num];
-        }
-    },false);
-
-    cannotMoveArticleDogdrip('빨간색으로 표시된 키를 누르면 이동합니다.');
-}
-
-
-
-
-
-
-// 단축키 눌러서 이동하기
-function moveArticleDogdripByPressHotKey(selected_key_number) {
-    printlog('moveArticleDogdripByPressHotKey() run!');
-    // selected_key_number : 선택된 게시글 순번
-    getListOfArticleDogdrip();
-    
-    alert('listOfArticleDogdrip : ' + listOfArticleDogdrip);
-    alert('listOfArtcicleDogdrip[selec~~]'+listOfArticleDogdrip[selected_key_number]);
-    location.href = listOfArticleDogdrip[selected_key_number];
-    //alert('selected_key_number : '+ selected_key_number);
-}
-
-
-var document_srl;
-var current_mid;
-function voteDogdrip(element) {
-    var btn_vote = document.getElementsByClassName('btnRv');
-    //alert('btn_vote.length : ' + btn_vote.length);
-    if (element == 'voteup' && confirm('정말 추천하시겠습니까?')) {
-        var btn_voteup = document.getElementsByClassName('btn_voted')[0];
-        btn_voteup.click();
-    }else if (element == 'votedown'&& confirm('정말 붐업하시겠습니까?')) {
-        var btn_votedown = document.getElementsByClassName('btn_blamed')[0];
-        btn_votedown.click();
+    const target = current + (direction === 'prev' ? -1 : 1);
+    if (target >= 0 && target < articles.length) {
+        location.href = articles[target];
+    } else {
+        showMessage('이동할 수 없습니다.');
     }
 }
 
-chrome.storage.local.get( null, function (items) {
-    printlog("run chrome.storage.local.get( null, function (items)");
-    printlog("document.URL.indexOf('http://www.dogdrip.net')" + document.URL.indexOf('http://www.dogdrip.net'));
-    if (document.URL.indexOf('https://www.dogdrip.net') != 0 ){
-       //  && tab.url != 'https://www.dogdrip.net' 
-       //  && tab.url != 'https://www.dogdrip.net/'
-       //  && tab.url != 'www.dogdrip.net' ) {
-         return;
-     }
-     
-     function DOMContentLoaded_function() {
-        printlog("run DOMContentLoaded_function() ");
-        $(`<div id="helper-box" class="helper_box" style="display:none;"><div class="helper-box-title">도움말</div>
-        <div class="heler-box-content">
-        <span>Ctrl + ← : 이전게시글로 이동</span><br>
-        <span>Ctrl + → : 다음게시글로 이동</span><br>
-        <span>Ctrl + ↓ : 목록으로 이동 + 단축키 부여</span><br></div>
-        <div id="hide-helper-btn" class="helper_btn"><button id="hidebtn" class="helper-btn">></button></div></div>
-        <div id="view-helper-btn" class="helper_btn"><button id="viewbtn" class="helper-btn"><</button></div>
-        `).insertAfter("div.footer > div.container");
+// ── 목록 이동 + 단축키 모드 ───────────────────────────
 
-        initialDogdrip();
-     }
+function moveToList() {
+    const items = document.querySelectorAll('li h5 a');
+    if (items.length === 0) {
+        showMessage('게시글 목록을 찾을 수 없습니다.');
+        return;
+    }
 
-     if(document.readyState === "loading"){
-        printlog("document.readyState === 'loading'");
-         document.addEventListener("DOMContentLoaded", function() {
-             DOMContentLoaded_function();
-         });
-     }
-     else{ // interactive complete
-        printlog("document.readyState === " + document.readyState);
-         DOMContentLoaded_function();
-     }
+    // 라벨 부여 기준으로 단일 목록 구성 (li, href 쌍)
+    const seenSrl = new Set();
+    const articleEntries = []; // { li, href, a }
+    items.forEach(a => {
+        const li = a.closest('li');
+        if (!li) return;
+        if (li.querySelector('#npl-list-bottom')) return; // 숨겨진 더미 li 제외
+        articleEntries.push({ li, href: a.href, a });
+    });
+
+    if (articleEntries.length === 0) {
+        showMessage('게시글 목록을 찾을 수 없습니다.');
+        return;
+    }
+
+    const liItems  = articleEntries.map(e => e.li);
+    const articles = articleEntries.map(e => e.href);
+
+    // 단축키 라벨 부여 (같은 articleEntries 순서 기준)
+    articleEntries.forEach(({ a }, i) => {
+        if (i >= KEY_LIST.length) return;
+        const span = document.createElement('span');
+        span.className = 'dd-ext-key';
+        span.textContent = KEY_LIST[i];
+        a.insertBefore(span, a.firstChild);
+    });
+
+    // 초기 포커스: 현재 보고 있는 게시글(li.current), 없으면 첫 번째
+    const currentLi = document.querySelector('ul.ed.list li.current');
+    let initialIndex = 0;
+    if (currentLi) {
+        const idx = liItems.indexOf(currentLi);
+        if (idx !== -1) initialIndex = idx;
+    }
+    updateListFocus(liItems, initialIndex);
+
+    // 포커스된 항목으로 스크롤
+    liItems[initialIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    showMessage('↑↓: 이동  Enter: 선택  알파벳: 바로 이동  ESC: 취소');
+
+    listKeyHandler = (e) => {
+        if (e.key === 'Escape') {
+            removeListMode();
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            updateListFocus(liItems, currentFocusIndex + 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            updateListFocus(liItems, currentFocusIndex - 1);
+            return;
+        }
+        if (e.key === 'Enter') {
+            if (currentFocusIndex >= 0 && currentFocusIndex < articles.length) {
+                location.href = articles[currentFocusIndex];
+            }
+            return;
+        }
+        const idx = KEY_LIST.indexOf((e.key || '').toLowerCase());
+        if (idx !== -1 && idx < articles.length) {
+            location.href = articles[idx];
+        }
+    };
+
+    document.addEventListener('keydown', listKeyHandler);
+}
+
+function removeListMode() {
+    if (listKeyHandler) {
+        document.removeEventListener('keydown', listKeyHandler);
+        listKeyHandler = null;
+    }
+    document.querySelectorAll('.dd-ext-key').forEach(el => el.remove());
+    document.querySelectorAll('.dd-list-focus').forEach(el => el.classList.remove('dd-list-focus'));
+    currentFocusIndex = -1;
+
+    const boardList = document.querySelector('div.ed.board-list');
+    if (boardList) {
+        boardList.setAttribute('tabindex', '-1');
+        boardList.focus({ preventScroll: true });
+    }
+}
+
+// ── 메시지 박스 ───────────────────────────────────────
+
+function showMessage(msg) {
+    let box = document.getElementById('dd-ext-msgbox');
+    if (box) {
+        clearTimeout(box._timer);
+        box.remove();
+    }
+
+    box = document.createElement('div');
+    box.id = 'dd-ext-msgbox';
+    box.className = 'dd-ext-msgbox';
+    box.textContent = msg;
+    document.body.appendChild(box);
+
+    box._timer = setTimeout(() => {
+        box.classList.add('dd-ext-fade');
+        setTimeout(() => box.remove(), 500);
+    }, 2500);
+}
+
+// ── 도움말 박스 ───────────────────────────────────────
+
+function initHelperBox() {
+    // 도움말 본체
+    const box = document.createElement('div');
+    box.id = 'dd-helper';
+    box.innerHTML = `
+        <div class="dd-helper-title">Dogdrip 확장 v2.0</div>
+        <div class="dd-helper-body">
+            <div><kbd>Ctrl</kbd>+<kbd>←</kbd> 이전 게시글</div>
+            <div><kbd>Ctrl</kbd>+<kbd>→</kbd> 다음 게시글</div>
+            <div><kbd>Ctrl</kbd>+<kbd>↓</kbd> 목록+단축키</div>
+        </div>
+        <button class="dd-helper-close" id="dd-close-btn">닫기</button>
+    `;
+    document.body.appendChild(box);
+
+    // 최소화 버튼
+    const mini = document.createElement('button');
+    mini.id = 'dd-mini-btn';
+    mini.className = 'dd-mini-btn';
+    mini.title = 'Dogdrip 확장 도움말';
+    mini.textContent = '?';
+    document.body.appendChild(mini);
+
+    // 저장된 표시 상태 복원
+    chrome.storage.sync.get('helperVisible', ({ helperVisible }) => {
+        applyHelperVisible(helperVisible !== false);
+    });
+
+    document.getElementById('dd-close-btn').addEventListener('click', () => applyHelperVisible(false));
+    mini.addEventListener('click', () => applyHelperVisible(true));
+}
+
+function applyHelperVisible(visible) {
+    const box = document.getElementById('dd-helper');
+    const mini = document.getElementById('dd-mini-btn');
+    if (box)  box.style.display  = visible ? '' : 'none';
+    if (mini) mini.style.display = visible ? 'none' : '';
+    chrome.storage.sync.set({ helperVisible: visible });
+}
+
+// ── 메시지 수신 (background → content script) ────────
+
+chrome.runtime.onMessage.addListener((message) => {
+    switch (message.action) {
+        case 'prev': moveArticle('prev'); break;
+        case 'next': moveArticle('next'); break;
+        case 'list': moveToList();        break;
+    }
 });
 
+// ── 초기화 ────────────────────────────────────────────
 
-// var ajaxComment = function(item) {
-    
-//     // // 유효성 검사
-//     // if (!procFilter(this, insert_comment)) {
-//     //     return;
-//     // }
-//     var commentForm = $('');
-//     $.ajax({
-//         url: './',
-//         type: 'POST',
-//         data: $(this).serializeArray(),
-//         success : function(data) {
-//             printlog(data);
-//         },
-//         error: function(XMLHttpRequest, textStatus, errorThrown) { 
-//             alert("Status: " + textStatus); alert("Error: " + errorThrown); 
-//         }   
-//     });
-// };
-
-
-
-
-
-// 댓글구역 버튼 변경
-function setCommentArea() {
-    printlog("setCommentArea start!");
-    var commentAreaArray = $('div.comment-form-body').children();
-    var buttonArea = commentAreaArray.eq(1).children().eq(1);
-    
-
-    // 필요없을지도.. 확인해볼것
-    var textAreaStr = '<textarea id="temp-266081775" class="ed textarea" style="resize: none; overflow: hidden; overflow-wrap: break-word; height: 58px;"></textarea>';
-    
-    
-    // 버튼 
-    var buttonStr = '<div>';
-    buttonStr += '<button type="button" id="submitCommentNew" onclick="ajaxComment();" class="ed button button-primary button-small button-rounded">등록new</button>';
-    buttonStr += '<button type="button" id="submitVoteNew" onclick="ajaxComment(); return beCheckWrite(this)" class="ed button button-primary button-small button-rounded">등록 + 추천 new</button>';
-    buttonStr += '<script type="text/javascript">';
-    buttonStr += '      (function($){';
-    buttonStr += '          $(function(){';
-    buttonStr += '              $("#submitCommentNew").click(function(){';
-    buttonStr += '                  $("#document_vote1").remove();';
-    buttonStr += '                  console.log("subsmitCopmmentNew click!");';                    
-    buttonStr += '              });';
-    buttonStr += '              $("#submitVoteNew").click(function(){';
-    buttonStr += '                  $("#document_vote2").remove();';
-    buttonStr += '                  $(this).after(\'<input type="hidden" name="document_vote" value="Y" id="document_vote" />\');';
-    buttonStr += '                  console.log("submitVoteNew click!");';  
-    buttonStr += '              });';
-    buttonStr += '          });';
-    buttonStr += '      })(jQuery);';
-
-
-    // ajax 설정
-    buttonStr += '      function ajaxComment() {';
-    buttonStr += '          $.ajax({';
-    buttonStr += '                  url: "./",';
-    buttonStr += '                  type: "POST",';
-    buttonStr += '                  data: $("write_comment").serializeArray(),';
-    buttonStr += '                  success : function(data) {';
-    buttonStr += '                      console.log($("write_comment"));';
-    buttonStr += '                      console.log(data);';
-    buttonStr += '                  },';
-    buttonStr += '                  error: function(XMLHttpRequest, textStatus, errorThrown) { ';
-    buttonStr += '                      alert("Status: " + textStatus); alert("Error: " + errorThrown);';
-    buttonStr += '                  }';
-    buttonStr += '          });';
-    buttonStr += '      };';
-
-
-    // buttonStr += '      function insert_comment(form){';
-    //     return legacy_filter('insert_comment',form,'board','procBoardInsertComment',completeInsertComment,['error','message','mid','document_srl','comment_srl'],'',{})};
-    //     (function($){var v=xe.getApp('validator')[0];if(!v)return false;v.cast("ADD_FILTER",["insert_comment",{'document_srl':{required:true},'nick_name':{required:true,maxlength:20},'password':{required:true},'email_address':{maxlength:250,rule:'email'},'homepage':{maxlength:250,rule:'url'},'content':{required:true,minlength:1}}]);v.cast('ADD_MESSAGE',['document_srl','문서번호']);v.cast('ADD_MESSAGE',['nick_name','닉네임']);v.cast('ADD_MESSAGE',['password','비밀번호']);v.cast('ADD_MESSAGE',['email_address','이메일 주소']);v.cast('ADD_MESSAGE',['homepage','홈페이지']);v.cast('ADD_MESSAGE',['content','내용']);v.cast('ADD_MESSAGE',['mid','모듈 이름']);v.cast('ADD_MESSAGE',['comment_srl','comment_srl']);v.cast('ADD_MESSAGE',['parent_srl','parent_srl']);v.cast('ADD_MESSAGE',['is_secret','is_secret']);v.cast('ADD_MESSAGE',['notify_message','notify_message']);v.cast('ADD_MESSAGE',['isnull','%s 값은 필수입니다.']);v.cast('ADD_MESSAGE',['outofrange','%s의 글자 수를 맞추어 주세요.']);v.cast('ADD_MESSAGE',['equalto','%s이(가) 잘못되었습니다.']);v.cast('ADD_MESSAGE',['invalid','%s의 값이 올바르지 않습니다.']);v.cast('ADD_MESSAGE',['invalid_email','%s의 값은 올바른 메일 주소가 아닙니다.']);v.cast('ADD_MESSAGE',['invalid_userid','%s의 값은 영문, 숫자, _만 가능하며 첫 글자는 영문이어야 합니다.']);v.cast('ADD_MESSAGE',['invalid_user_id','%s의 값은 영문, 숫자, _만 가능하며 첫 글자는 영문이어야 합니다.']);v.cast('ADD_MESSAGE',['invalid_homepage','%s의 형식이 잘못되었습니다.(예: https://www.rhymix.org/)']);v.cast('ADD_MESSAGE',['invalid_url','%s의 형식이 잘못되었습니다.(예: https://www.rhymix.org/)']);v.cast('ADD_MESSAGE',['invalid_korean','%s의 형식이 잘못되었습니다. 한글로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_korean_number','%s의 형식이 잘못되었습니다. 한글과 숫자로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_alpha','%s의 형식이 잘못되었습니다. 영문으로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_alpha_number','%s의 형식이 잘못되었습니다. 영문과 숫자로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_mid','%s의 형식이 잘못되었습니다. 첫 글자는 영문으로 시작해야 하며 \'영문+숫자+_\'로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_number','%s의 형식이 잘못되었습니다. 숫자로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_float','%s의 형식이 잘못되었습니다. 숫자로만 입력해야 합니다.']);v.cast('ADD_MESSAGE',['invalid_extension','%s의 형식이 잘못되었습니다. *.* 나 *.jpg;*.gif; 처럼 입력해야 합니다.']);})(jQuery);
-
-    //     function completeInsertCommentNew(ret_obj){
-    //         var error=ret_obj.error;var message=ret_obj.message;var mid=ret_obj.mid;
-    //         var document_srl=ret_obj.document_srl;var comment_srl=ret_obj.comment_srl;
-    //         if(
-    //             ret_obj.redirect_url){redirect(ret_obj.redirect_url);
-    //         }else{
-    //             var url=current_url.setQuery('mid',mid).setQuery('document_srl',document_srl).setQuery('act','');
-    //             if(comment_srl)url=url.setQuery('rnd',comment_srl)+"#comment_"+comment_srl;redirect(url);
-    //         }
-    //     }
-
-    buttonStr += '</script>';
-
-    buttonStr += buttonArea.html();
-    
-    buttonArea.html(buttonStr);
-
-    printlog("setCommentArea end!");
-};
-
-
-
-function setTextareaReplaceCommentByAddons() {
-    var str = document.getElementById("temp-266081775").value;
-    str = "<p>" + str.replace(/(?:\r\n|\r|\n)/g, "</p>\r\n<p>") + "</p>";
-    str = str.replaceAll("<p></p>", "<p>&nbsp;</p>");
-    document.getElementById("editor-266081775").value = str;
-};
-
-
-  
-  (function($){
-    $(function(){
-        $('#submitComment').click(function(){
-            $('#document_vote').remove();
-        });
-        $('#submitVote').click(function(){
-            $('#document_vote').remove();
-            $(this).after('<input type="hidden" name="document_vote" value="Y" id="document_vote" />');
-        });
-    });
-})(jQuery);
+// 메인 홈 페이지(목록 없는 경우)에서는 도움말만 표시하지 않음
+const path = location.pathname;
+if (path !== '/' && path !== '') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHelperBox);
+    } else {
+        initHelperBox();
+    }
+}
